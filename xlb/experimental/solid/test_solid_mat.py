@@ -1,3 +1,4 @@
+
 import xlb
 from xlb.compute_backend import ComputeBackend
 from xlb.precision_policy import PrecisionPolicy
@@ -27,6 +28,8 @@ if __name__ == "__main__":
     vector_size = 5
     cardinality = vector_size * velocity_set.q
     f = grid.create_field(cardinality=cardinality, dtype=precision_policy.store_precision)
+    U_num = grid.create_field(cardinality=vector_size, dtype=precision_policy.store_precision)
+    B = grid.create_field(cardinality=vector_size, dtype=precision_policy.store_precision)
     _vector_pop = wp.vec(vector_size, dtype=precision_policy.compute_precision.wp_dtype)
     _vector_pop = wp.vec(velocity_set.q, dtype=_vector_pop)
     _vector_mat = wp.types.matrix(shape=(vector_size, velocity_set.q), dtype=precision_policy.compute_precision.wp_dtype)
@@ -39,20 +42,32 @@ if __name__ == "__main__":
                 _f[i, j] = f[j + vector_size * i, index[0], index[1], index[2]]
         return _f
 
+    @wp.func
+    def write_pop_functional(f: Any, index: Any, _f: Any):
+        for i in range(velocity_set.q):
+            for j in range(vector_size):
+                f[j + vector_size * i, index[0], index[1], index[2]] = precision_policy.store_precision.wp_dtype(_f[i, j])
+    
+    @wp.func
+    def write_U_num(U_num: Any, index: Any, _U_num: Any):
+        for j in range(vector_size):
+            U_num[j, index[0], index[1], index[2]] = precision_policy.store_precision.wp_dtype(_U_num[j])
+
     @wp.kernel
     def init_kernel(f: wp.array4d(dtype=Any)):
         i, j, k = wp.tid()
         index = wp.vec3i(i, j, k)
         _f = read_pop_functional(f, index)
-
+        
         for i in range(vector_size):
             for j in range(velocity_set.q):
                 _f[i, j] = precision_policy.compute_precision.wp_dtype(1.0)
+        write_pop_functional(f, index, _f)
 
-        for i in range(velocity_set.q):
-            for j in range(vector_size):
-                f[j + vector_size * i, index[0], index[1], index[2]] = precision_policy.store_precision.wp_dtype(_f[i, j])
+
+
 
 
 wp.launch(init_kernel, inputs=[f], dim=f.shape[1:])
 print(f.numpy())
+print(U_num.numpy())
