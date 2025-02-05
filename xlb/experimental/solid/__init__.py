@@ -1,0 +1,197 @@
+import xlb
+from xlb.compute_backend import ComputeBackend
+from xlb.precision_policy import PrecisionPolicy
+from xlb.helper import create_nse_fields, initialize_eq, check_bc_overlaps
+from xlb.operator.boundary_masker import IndicesBoundaryMasker
+from xlb.operator.stepper import IncompressibleNavierStokesStepper
+from xlb.operator.boundary_condition import HalfwayBounceBackBC, EquilibriumBC
+from xlb.operator.macroscopic import Macroscopic
+from xlb.utils import save_fields_vtk, save_image
+from xlb.grid import grid_factory
+import xlb.velocity_set
+import warp as wp
+from warp import sin, cos, pi
+import jax.numpy as jnp
+import numpy as np
+from typing import Any
+
+if __name__ == "__main__":
+    # Running the simulation
+    total_time = 1.0
+    n_steps = 10000.0
+    domain_size = 1.0
+    grid_size = 5000
+    grid_shape = (grid_size, grid_size)
+    backend = ComputeBackend.WARP
+    precision_policy = PrecisionPolicy.FP32FP32
+
+    velocity_set = xlb.velocity_set.D2Q4(precision_policy=precision_policy, backend=backend)
+    omega = 1.0
+    delta_x = domain_size/grid_size
+    delta_t = total_time/n_steps
+    c = delta_x/delta_t
+    c_k = 1.1
+    c_m = 0.4
+
+    grid = grid_factory(grid_shape, compute_backend=backend)
+    vector_size = 5
+    cardinality = vector_size * velocity_set.q
+    f = grid.create_field(cardinality=cardinality, dtype=precision_policy.store_precision)
+    fstar = grid.create_field(cardinality=cardinality, dtype=precision_policy.store_precision)
+    U_num = grid.create_field(cardinality=vector_size, dtype=precision_policy.store_precision)
+    B = grid.create_field(cardinality=vector_size, dtype=precision_policy.store_precision)
+    _vector_vec = wp.vec(vector_size, dtype=precision_policy.compute_precision.wp_dtype)
+    _vector_mat = wp.types.matrix(shape=(vector_size, velocity_set.q), dtype=precision_policy.compute_precision.wp_dtype)
+
+    @wp.func
+    def duxdt(x: wp.float32, y: wp.float32, t: wp.float32):
+        return 1.6*pi*sin(pi*(-1.6*t + 2.0*y))*sin(pi*(-1.2*t + 4.0*x))*sin(pi*(4.0*t - 0.4)) + 4.0*pi*sin(pi*(-1.2*t + 4.0*x))*cos(pi*(-1.6*t + 2.0*y))*cos(pi*(4.0*t - 0.4)) - 1.2*pi*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.6*t + 2.0*y))*cos(pi*(-1.2*t + 4.0*x))   
+    
+    @wp.func
+    def duydt(x: wp.float32, y: wp.float32, t: wp.float32):
+        return 2.8*pi*sin(pi*(-2.8*t + 4.0*x))*sin(pi*(-0.2*t + 2.0*y))*cos(pi*(4.0*t + 1.6)) - 4.0*pi*sin(pi*(-0.2*t + 2.0*y))*sin(pi*(4.0*t + 1.6))*cos(pi*(-2.8*t + 4.0*x)) - 0.2*pi*cos(pi*(-2.8*t + 4.0*x))*cos(pi*(-0.2*t + 2.0*y))*cos(pi*(4.0*t + 1.6))
+    
+    @wp.func
+    def duxdx(x: wp.float32, y: wp.float32, t: wp.float32):
+        return 4.0*pi*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.6*t + 2.0*y))*cos(pi*(-1.2*t + 4.0*x))
+
+    @wp.func
+    def duydx(x: wp.float32, y: wp.float32, t: wp.float32):
+        return -4.0*pi*sin(pi*(-2.8*t + 4.0*x))*sin(pi*(-0.2*t + 2.0*y))*cos(pi*(4.0*t + 1.6))
+    
+    @wp.func
+    def duxdy(x: wp.float32, y: wp.float32, t: wp.float32):
+        return -2.0*pi*sin(pi*(-1.6*t + 2.0*y))*sin(pi*(-1.2*t + 4.0*x))*sin(pi*(4.0*t - 0.4))
+
+    @wp.func
+    def duydy(x: wp.float32, y: wp.float32, t: wp.float32):
+        return 2.0*pi*cos(pi*(-2.8*t + 4.0*x))*cos(pi*(-0.2*t + 2.0*y))*cos(pi*(4.0*t + 1.6))
+
+    @wp.func
+    def read_initial_conditions(x: wp.float32, y: wp.float32):
+        _U = _vector_vec()
+        t = 0.0
+        _U[0] = duxdt(x,y,t)
+        _U[1] = duydt(x,y,t)
+        _U[2] = -c_k*(duxdx(x,y,t)+duydy(x,y,t))
+        _U[3] = -c_m*(duxdx(x,y,t)-duydy(x,y,t))
+        _U[4] = -c_m*(duxdy(x,y,t)+duydx(x,y,t))
+        return _U
+
+    @wp.func
+    def read_pop_functional(f: Any, index: Any):
+        _f = _vector_mat()
+        for i in range(velocity_set.q):
+            for j in range(vector_size):
+                _f[i, j] = f[j + vector_size * i, index[0], index[1], index[2]]
+        return _f
+
+    @wp.func
+    def write_pop_functional(f: Any, index: Any, _f: Any):
+        for i in range(velocity_set.q):
+            for j in range(vector_size):
+                f[j + vector_size * i, index[0], index[1], index[2]] = precision_policy.store_precision.wp_dtype(_f[i, j])
+    
+    @wp.func
+    def read_U_num(U_num: Any, index: Any):
+        _U = _vector_vec()
+        for j in range(vector_size):
+            _U[j] = U_num[j, index[0], index[1], index[2]]
+        return _U
+    
+    @wp.func
+    def write_U_num(U_num: Any, index: Any, _U: Any):
+        for j in range(vector_size):
+            U_num[j, index[0], index[1], index[2]] = precision_policy.store_precision.wp_dtype(_U[j])
+    
+    @wp.func
+    def phi_x(_U: Any):
+        phi_x = _vector_vec()
+        phi_x[0] = c_k*_U[2]+c_m*_U[3]
+        phi_x[1] = c_m*_U[4]
+        phi_x[2] = c_k*_U[0]
+        phi_x[3] = c_m*_U[0]
+        phi_x[4] = c_m*_U[1]
+        return phi_x
+    
+    @wp.func
+    def phi_y(_U: Any):
+        phi_y = _vector_vec()
+        phi_y[0] = c_m*_U[4]
+        phi_y[1] = c_k*_U[2]-c_m*_U[3]
+        phi_y[2] = c_k*_U[1]
+        phi_y[3] = -c_m*_U[1]
+        phi_y[4] = c_m*_U[0]
+        return phi_y
+
+    @wp.kernel
+    def initial_conditions(U_num: wp.array4d(dtype=Any), f: wp.array4d(dtype=Any)):
+        i, j, k = wp.tid()
+        index = wp.vec3i(i, j, k)
+        x = (wp.float32(i)+0.5)*delta_x
+        y = (wp.float32(j)+0.5)*delta_x
+        _U = read_initial_conditions(x, y)
+        phi_x = phi_x(_U)
+        phi_y = phi_y(_U)
+        write_U_num(U_num, index, _U)
+        _f = read_pop_functional(f, index)
+        for s in range(vector_size):
+            for ij in range(velocity_set.q):
+                #_f[ij,s] = 0.25*(_U[s]+2.0/c*(velocity_set.c_float[0,ij]*phi_x[s]+velocity_set.c_float[1,ij]*phi_y[s]))
+                _f[ij,s] = 0.25*(_U[s])
+                if ij == 0:
+                    _f[ij,s] = _f[ij,s] + 2.0/c*phi_x[s]
+                if ij == 1:
+                    _f[ij,s] = _f[ij,s] - 2.0/c*phi_x[s]
+                if ij == 2:
+                    _f[ij,s] = _f[ij,s] + 2.0/c*phi_y[s]
+                if ij == 3:
+                    _f[ij,s] = _f[ij,s] - 2.0/c*phi_y[s]
+        write_pop_functional(f, index, _f)
+
+    @wp.kernel
+    def collision_operator(U_num: wp.array4d(dtype=Any), f: wp.array4d(dtype=Any), fstar: wp.array4d(dtype=Any)):
+        i, j, k = wp.tid()
+        index = wp.vec3i(i, j, k)
+        x = (wp.float32(i)+0.5)*delta_x
+        y = (wp.float32(j)+0.5)*delta_x
+        _U = read_U_num(U_num, index)
+        phi_x = phi_x(_U)
+        phi_y = phi_y(_U)
+        _f = read_pop_functional(f, index)
+        _feq = _vector_mat()
+        _fstar = _vector_mat()
+        for s in range(vector_size):
+            for ij in range(velocity_set.q):
+                #_f[ij,s] = 0.25*(_U[s]+2.0/c*(velocity_set.c_float[0,ij]*phi_x[s]+velocity_set.c_float[1,ij]*phi_y[s]))
+                _feq[ij,s] = 0.25*(_U[s])
+            _feq[0,s] = _feq[0,s] + 2.0/c*phi_x[s]
+            _feq[1,s] = _feq[1,s] - 2.0/c*phi_x[s]
+            _feq[2,s] = _feq[2,s] + 2.0/c*phi_y[s]
+            _feq[3,s] = _feq[3,s] - 2.0/c*phi_y[s]
+                    
+        _fstar = 2.0*_feq-_f
+        write_pop_functional(fstar, index, _fstar)
+
+    @wp.kernel
+    def streaming_operator(f: wp.array4d(dtype=Any), fstar: wp.array4d(dtype=Any)):
+        i, j, k = wp.tid()
+        index = wp.vec3i(i, j, k)
+        index_right = wp.vec3i((i+1)%grid_size, j, k)
+        index_left = wp.vec3i((i-1)%grid_size, j, k)
+        index_above = wp.vec3i(i, (j+1)%grid_size, k)
+        index_below = wp.vec3i(i, (j-1)%grid_size, k)
+
+        _fstar = read_pop_functional(fstar, index)
+        for s in range(vector_size):
+            f[0 + vector_size * s, (i+1)%grid_size, j, k] = precision_policy.store_precision.wp_dtype(_fstar[0,s])
+            f[1 + vector_size * s, (i-1)%grid_size, j, k] = precision_policy.store_precision.wp_dtype(_fstar[1,s])
+            f[2 + vector_size * s, i, (j+1)%grid_size, k] = precision_policy.store_precision.wp_dtype(_fstar[2,s])
+            f[3 + vector_size * s, i, (j-1)%grid_size, k] = precision_policy.store_precision.wp_dtype(_fstar[3,s])
+
+wp.launch(initial_conditions, inputs=[U_num, f], dim=f.shape[1:])
+#for t in range(n_steps):
+wp.launch(collision_operator, inputs=[U_num, f, fstar], dim=f.shape[1:])
+    # collision operator
+wp.launch(streaming_operator, inputs=[f, fstar], dim=f.shape[1:])
+    # streaming operator
