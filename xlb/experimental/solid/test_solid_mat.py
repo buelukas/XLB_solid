@@ -13,6 +13,7 @@ import xlb.velocity_set
 import warp as wp
 import jax.numpy as jnp
 import numpy as np
+import sympy as sp
 from typing import Any
 
 if __name__ == "__main__":
@@ -60,7 +61,7 @@ if __name__ == "__main__":
             U_num[j, index[0], index[1], index[2]] = precision_policy.store_precision.wp_dtype(_U[j])
     
     @wp.func
-    def phi_x(_U: Any, c_k: Any, c_m: Any):
+    def phi_x(_U: Any):
         phi_x = _vector_vec()
         phi_x[0] = c_k*_U[2]+c_m*_U[3]
         phi_x[1] = c_m*_U[4]
@@ -70,7 +71,7 @@ if __name__ == "__main__":
         return phi_x
     
     @wp.func
-    def phi_y(_U: Any, c_k: Any, c_m: Any):
+    def phi_y(_U: Any):
         phi_y = _vector_vec()
         phi_y[0] = c_m*_U[4]
         phi_y[1] = c_k*_U[2]-c_m*_U[3]
@@ -84,10 +85,7 @@ if __name__ == "__main__":
         _feq = _vector_mat()
         for i in range(vector_size):
             for j in range(velocity_set.q):
-
-                _feq[i,j]=(_U[i]+2.0/c*(velocity_set._c_float[0,j]*phi_x[i]+velocity_set._c_float[1,j]*phi_y[i]))/4.0
-
-
+                _feq[i,j]=(_U[i]+2.0/c*(velocity_set.c_float[0,j]*phi_x[i]+velocity_set.c_float[1,j]*phi_y[i]))/4.0
         return _feq
 
     @wp.kernel
