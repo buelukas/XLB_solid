@@ -45,14 +45,7 @@ if __name__ == "__main__":
     _vector_vec = wp.vec(vector_size, dtype=precision_policy.compute_precision.wp_dtype)
     _vector_mat = wp.types.matrix(shape=(vector_size, velocity_set.q), dtype=precision_policy.compute_precision.wp_dtype)
 
-    @wp.func
-    def bx(x: wp.float32, y: wp.float32, t: wp.float32):
-        return -c_k**2.0*(-8.0*pi**2.0*sin(pi*(-2.8*t + 4.0*x))*cos(pi*(-0.2*t + 2.0*y))*cos(pi*(4.0*t + 1.6)) - 16.0*pi**2.0*sin(pi*(-1.2*t + 4.0*x))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.6*t + 2.0*y))) - c_m**2.0*(-8.0*pi**2.0*sin(pi*(-2.8*t + 4.0*x))*cos(pi*(-0.2*t + 2.0*y))*cos(pi*(4.0*t + 1.6)) - 4.0*pi**2.0*sin(pi*(-1.2*t + 4.0*x))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.6*t + 2.0*y))) - c_m**2.0*(8.0*pi**2.0*sin(pi*(-2.8*t + 4.0*x))*cos(pi*(-0.2*t + 2.0*y))*cos(pi*(4.0*t + 1.6)) - 16.0*pi**2.0*sin(pi*(-1.2*t + 4.0*x))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.6*t + 2.0*y))) + 12.8*pi**2.0*sin(pi*(-1.6*t + 2.0*y))*sin(pi*(-1.2*t + 4.0*x))*cos(pi*(4.0*t - 0.4)) - 3.84*pi**2.0*sin(pi*(-1.6*t + 2.0*y))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.2*t + 4.0*x)) - 20.0*pi**2.0*sin(pi*(-1.2*t + 4.0*x))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.6*t + 2.0*y)) - 9.6*pi**2.0*cos(pi*(-1.6*t + 2.0*y))*cos(pi*(-1.2*t + 4.0*x))*cos(pi*(4.0*t - 0.4))
-
-    @wp.func
-    def by(x: wp.float32, y: wp.float32, t: wp.float32):
-        return -c_k**2.0*(-8.0*pi**2.0*sin(pi*(-1.6*t + 2.0*y))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.2*t + 4.0*x)) - 4.0*pi**2.0*sin(pi*(-0.2*t + 2.0*y))*cos(pi*(-2.8*t + 4.0*x))*cos(pi*(4.0*t + 1.6))) - c_m**2.0*(-8.0*pi**2.0*sin(pi*(-1.6*t + 2.0*y))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.2*t + 4.0*x)) - 16.0*pi**2.0*sin(pi*(-0.2*t + 2.0*y))*cos(pi*(-2.8*t + 4.0*x))*cos(pi*(4.0*t + 1.6))) + c_m**2.0*(-8.0*pi**2.0*sin(pi*(-1.6*t + 2.0*y))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.2*t + 4.0*x)) + 4.0*pi**2.0*sin(pi*(-0.2*t + 2.0*y))*cos(pi*(-2.8*t + 4.0*x))*cos(pi*(4.0*t + 1.6))) - 22.4*pi**2.0*sin(pi*(-2.8*t + 4.0*x))*sin(pi*(-0.2*t + 2.0*y))*sin(pi*(4.0*t + 1.6)) - 1.12*pi**2.0*sin(pi*(-2.8*t + 4.0*x))*cos(pi*(-0.2*t + 2.0*y))*cos(pi*(4.0*t + 1.6)) - 23.88*pi**2.0*sin(pi*(-0.2*t + 2.0*y))*cos(pi*(-2.8*t + 4.0*x))*cos(pi*(4.0*t + 1.6)) + 1.6*pi**2.0*sin(pi*(4.0*t + 1.6))*cos(pi*(-2.8*t + 4.0*x))*cos(pi*(-0.2*t + 2.0*y))
-
+    #function to retrieve the analytical solution of U
     @wp.func
     def U(x: wp.float32, y: wp.float32, t: wp.float32):
         U = _vector_vec()
@@ -63,17 +56,18 @@ if __name__ == "__main__":
         U[4] = -c_m*(-2.0*pi*sin(pi*(-1.6*t + 2.0*y))*sin(pi*(-1.2*t + 4.0*x))*sin(pi*(4.0*t - 0.4))-4.0*pi*sin(pi*(-2.8*t + 4.0*x))*sin(pi*(-0.2*t + 2.0*y))*cos(pi*(4.0*t + 1.6)))
         return U
     
+    #function to retrieve the analytical solution of B
     @wp.func
     def B(x: wp.float32, y: wp.float32, t: wp.float32):
         B = _vector_vec()
-        B[0] = 0
-        B[1] = 0
-        B[2] = 0
-        B[3] = 0
-        B[4] = 0
+        B[0] = -c_k**2.0*(-8.0*pi**2.0*sin(pi*(-2.8*t + 4.0*x))*cos(pi*(-0.2*t + 2.0*y))*cos(pi*(4.0*t + 1.6)) - 16.0*pi**2.0*sin(pi*(-1.2*t + 4.0*x))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.6*t + 2.0*y))) - c_m**2.0*(-8.0*pi**2.0*sin(pi*(-2.8*t + 4.0*x))*cos(pi*(-0.2*t + 2.0*y))*cos(pi*(4.0*t + 1.6)) - 4.0*pi**2.0*sin(pi*(-1.2*t + 4.0*x))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.6*t + 2.0*y))) - c_m**2.0*(8.0*pi**2.0*sin(pi*(-2.8*t + 4.0*x))*cos(pi*(-0.2*t + 2.0*y))*cos(pi*(4.0*t + 1.6)) - 16.0*pi**2.0*sin(pi*(-1.2*t + 4.0*x))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.6*t + 2.0*y))) + 12.8*pi**2.0*sin(pi*(-1.6*t + 2.0*y))*sin(pi*(-1.2*t + 4.0*x))*cos(pi*(4.0*t - 0.4)) - 3.84*pi**2.0*sin(pi*(-1.6*t + 2.0*y))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.2*t + 4.0*x)) - 20.0*pi**2.0*sin(pi*(-1.2*t + 4.0*x))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.6*t + 2.0*y)) - 9.6*pi**2.0*cos(pi*(-1.6*t + 2.0*y))*cos(pi*(-1.2*t + 4.0*x))*cos(pi*(4.0*t - 0.4))
+        B[1] = -c_k**2.0*(-8.0*pi**2.0*sin(pi*(-1.6*t + 2.0*y))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.2*t + 4.0*x)) - 4.0*pi**2.0*sin(pi*(-0.2*t + 2.0*y))*cos(pi*(-2.8*t + 4.0*x))*cos(pi*(4.0*t + 1.6))) - c_m**2.0*(-8.0*pi**2.0*sin(pi*(-1.6*t + 2.0*y))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.2*t + 4.0*x)) - 16.0*pi**2.0*sin(pi*(-0.2*t + 2.0*y))*cos(pi*(-2.8*t + 4.0*x))*cos(pi*(4.0*t + 1.6))) + c_m**2.0*(-8.0*pi**2.0*sin(pi*(-1.6*t + 2.0*y))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.2*t + 4.0*x)) + 4.0*pi**2.0*sin(pi*(-0.2*t + 2.0*y))*cos(pi*(-2.8*t + 4.0*x))*cos(pi*(4.0*t + 1.6))) - 22.4*pi**2.0*sin(pi*(-2.8*t + 4.0*x))*sin(pi*(-0.2*t + 2.0*y))*sin(pi*(4.0*t + 1.6)) - 1.12*pi**2.0*sin(pi*(-2.8*t + 4.0*x))*cos(pi*(-0.2*t + 2.0*y))*cos(pi*(4.0*t + 1.6)) - 23.88*pi**2.0*sin(pi*(-0.2*t + 2.0*y))*cos(pi*(-2.8*t + 4.0*x))*cos(pi*(4.0*t + 1.6)) + 1.6*pi**2.0*sin(pi*(4.0*t + 1.6))*cos(pi*(-2.8*t + 4.0*x))*cos(pi*(-0.2*t + 2.0*y))
+        B[2] = 0.0
+        B[3] = 0.0
+        B[4] = 0.0
         return B
 
-   #STILL TO IMPLEMENT
+    #function to retrieve the analytical solution of dUdx
     @wp.func
     def dUdx(x: wp.float32, y: wp.float32, t: wp.float32):
         dUdx = _vector_vec()
@@ -84,7 +78,7 @@ if __name__ == "__main__":
         dUdx[4] = -c_m*(-8.0*pi**2.0*sin(pi*(-1.6*t + 2.0*y))*sin(pi*(4.0*t - 0.4))*cos(pi*(-1.2*t + 4.0*x)) - 16.0*pi**2.0*sin(pi*(-0.2*t + 2.0*y))*cos(pi*(-2.8*t + 4.0*x))*cos(pi*(4.0*t + 1.6)))
         return dUdx
     
-    #STILL TO IMPLEMENT    
+    #function to retrieve the analytical solution of dUdy    
     @wp.func
     def dUdy(x: wp.float32, y: wp.float32, t: wp.float32):
         dUdy = _vector_vec()
@@ -122,25 +116,26 @@ if __name__ == "__main__":
             U_num[j, index[0], index[1], index[2]] = precision_policy.store_precision.wp_dtype(_U[j])
 
     @wp.func
-    def phi_x(_U: Any):
+    def phi_x_lb(_U: Any):
         phi_x = _vector_vec()
-        phi_x[0] = c_k*_U[2]+c_m*_U[3]
-        phi_x[1] = c_m*_U[4]
-        phi_x[2] = c_k*_U[0]
-        phi_x[3] = c_m*_U[0]
-        phi_x[4] = c_m*_U[1]
+        phi_x[0] = (c_k*_U[2]+c_m*_U[3])/c
+        phi_x[1] = c_m*_U[4]/c
+        phi_x[2] = c_k*_U[0]/c
+        phi_x[3] = c_m*_U[0]/c
+        phi_x[4] = c_m*_U[1]/c
         return phi_x
 
     @wp.func
-    def phi_y(_U: Any):
+    def phi_y_lb(_U: Any):
         phi_y = _vector_vec()
-        phi_y[0] = c_m*_U[4]
-        phi_y[1] = c_k*_U[2]-c_m*_U[3]
-        phi_y[2] = c_k*_U[1]
-        phi_y[3] = -c_m*_U[1]
-        phi_y[4] = c_m*_U[0]
+        phi_y[0] = c_m*_U[4]/c
+        phi_y[1] = (c_k*_U[2]-c_m*_U[3])/c
+        phi_y[2] = c_k*_U[1]/c
+        phi_y[3] = -c_m*_U[1]/c
+        phi_y[4] = c_m*_U[0]/c
         return phi_y
 
+    #1st order IC
     @wp.kernel
     def initial_conditions(U_num: wp.array4d(dtype=Any), f: wp.array4d(dtype=Any)):
         i, j, k = wp.tid()
@@ -148,18 +143,21 @@ if __name__ == "__main__":
         x = (wp.float32(i)+0.5)*delta_x
         y = (wp.float32(j)+0.5)*delta_x
         t = 0.0
+        #evaluate relevant properties from analytical solutions
         _U = U(x, y, t)
-        phi_x = phi_x(_U)
-        phi_y = phi_y(_U)
         _f = _vector_mat()
+        _f0 = 0.25*(_U+2.0*phi_x_lb(_U))
+        _f1 = 0.25*(_U+2.0*phi_y_lb(_U))
+        _f2 = 0.25*(_U-2.0*phi_x_lb(_U))
+        _f3 = 0.25*(_U-2.0*phi_y_lb(_U))
         for s in range(vector_size):
-            _f[s,0] = 0.25*(_U[s]) + 0.5/c*phi_x[s]
-            _f[s,1] = 0.25*(_U[s]) + 0.5/c*phi_y[s]
-            _f[s,2] = 0.25*(_U[s]) - 0.5/c*phi_x[s]
-            _f[s,3] = 0.25*(_U[s]) - 0.5/c*phi_y[s]
+            _f[s,0] = _f0[s]
+            _f[s,1] = _f1[s]
+            _f[s,2] = _f2[s]
+            _f[s,3] = _f3[s]
         write_pop_functional(f, index, _f)
 
-    #2nd order initial conditions somewhat faulty
+    #2nd order IC with relatively high error due to precision issues
     @wp.kernel
     def initial_conditions_v2(U_num: wp.array4d(dtype=Any), f: wp.array4d(dtype=Any)):
         i, j, k = wp.tid()
@@ -167,19 +165,21 @@ if __name__ == "__main__":
         x = (wp.float32(i)+0.5)*delta_x
         y = (wp.float32(j)+0.5)*delta_x
         t = 0.0
+        #evaluate relevant properties from analytical solutions
         _U = U(x, y, t)
-        _B = _vector_vec()
-        # _B = B(x, y, t)
-        _B[0] = bx(x, y, t)
-        _B[1] = by(x, y, t)
-        _dUdx = dUdx(x, y, t)
-        _dUdy = dUdy(x, y, t)
+        _B = B(x, y, t)*delta_t
+        _dUdx = dUdx(x, y, t)*delta_x
+        _dUdy = dUdy(x, y, t)*delta_x
         _f = _vector_mat()
+        _f0 = 0.25*((_U+2.0*phi_x_lb(_U)) + 0.5*(-(_B+2.0*phi_x_lb(_B)) - _dUdx - phi_x_lb(_dUdx) + phi_y_lb(_dUdy) + 2.0*(phi_x_lb(phi_x_lb(_dUdx)+phi_y_lb(_dUdy)))))
+        _f1 = 0.25*((_U+2.0*phi_y_lb(_U)) + 0.5*(-(_B+2.0*phi_y_lb(_B)) - _dUdy + phi_x_lb(_dUdx) - phi_y_lb(_dUdy) + 2.0*(phi_y_lb(phi_x_lb(_dUdx)+phi_y_lb(_dUdy)))))
+        _f2 = 0.25*((_U-2.0*phi_x_lb(_U)) + 0.5*(-(_B-2.0*phi_x_lb(_B)) + _dUdx - phi_x_lb(_dUdx) + phi_y_lb(_dUdy) - 2.0*(phi_x_lb(phi_x_lb(_dUdx)+phi_y_lb(_dUdy)))))
+        _f3 = 0.25*((_U-2.0*phi_y_lb(_U)) + 0.5*(-(_B-2.0*phi_y_lb(_B)) + _dUdy + phi_x_lb(_dUdx) - phi_y_lb(_dUdy) - 2.0*(phi_y_lb(phi_x_lb(_dUdx)+phi_y_lb(_dUdy)))))
         for s in range(vector_size):
-            _f[s,0] = 0.25*(_U[s]) + 0.5/c*phi_x(_U)[s] - 0.125*delta_t*(_B[s]+2.0/c*phi_x(_B)[s]+c*_dUdx[s]+phi_x(_dUdx)[s]-2.0/c*phi_x(phi_x(_dUdx))[s]-phi_y(_dUdy)[s]-2.0/c*phi_x(phi_y(_dUdy))[s])
-            _f[s,1] = 0.25*(_U[s]) + 0.5/c*phi_y(_U)[s] - 0.125*delta_t*(_B[s]+2.0/c*phi_y(_B)[s]+c*_dUdy[s]+phi_y(_dUdy)[s]-2.0/c*phi_y(phi_x(_dUdx))[s]-phi_x(_dUdx)[s]-2.0/c*phi_y(phi_y(_dUdy))[s])
-            _f[s,2] = 0.25*(_U[s]) - 0.5/c*phi_x(_U)[s] - 0.125*delta_t*(_B[s]-2.0/c*phi_x(_B)[s]-c*_dUdx[s]+phi_x(_dUdx)[s]+2.0/c*phi_x(phi_x(_dUdx))[s]-phi_y(_dUdy)[s]+2.0/c*phi_x(phi_y(_dUdy))[s])
-            _f[s,3] = 0.25*(_U[s]) - 0.5/c*phi_y(_U)[s] - 0.125*delta_t*(_B[s]-2.0/c*phi_y(_B)[s]-c*_dUdy[s]+phi_y(_dUdy)[s]+2.0/c*phi_y(phi_x(_dUdx))[s]-phi_x(_dUdx)[s]+2.0/c*phi_y(phi_y(_dUdy))[s])
+            _f[s,0] = _f0[s]
+            _f[s,1] = _f1[s]
+            _f[s,2] = _f2[s]
+            _f[s,3] = _f3[s]
         write_pop_functional(f, index, _f)
 
     @wp.kernel
@@ -197,24 +197,21 @@ if __name__ == "__main__":
         y = (wp.float32(j)+0.5)*delta_x
         t = wp.float32(n)*delta_t
         # evaluate forcing terms
-        # _B_lb = B(x, y, t)*delta_t
-
-        _B_lb[0] = bx(x, y, t)*delta_t
-        _B_lb[1] = by(x, y, t)*delta_t
+        _B_lb = B(x, y, t)*delta_t
         write_U_num(B_lb, index, _B_lb)
         # compute _U(_f, bx, by) and store it globally
         for s in range(vector_size):
             _U[s] = _f[s,0]+_f[s,1]+_f[s,2]+_f[s,3]+0.5*_B_lb[s]
         write_U_num(U_num, index, _U)
         # compute phi_x(_U) and phi_y(_U)
-        phi_x = phi_x(_U)
-        phi_y = phi_y(_U)
+        phi_x_lb = phi_x_lb(_U)
+        phi_y_lb = phi_y_lb(_U)
         # compute _feq(_U, phi_x, phi_y) and store it globally
         for s in range(vector_size):
-            _feq[s,0] = 0.25*(_U[s]) + 0.5/c*phi_x[s]
-            _feq[s,1] = 0.25*(_U[s]) + 0.5/c*phi_y[s]
-            _feq[s,2] = 0.25*(_U[s]) - 0.5/c*phi_x[s]
-            _feq[s,3] = 0.25*(_U[s]) - 0.5/c*phi_y[s]
+            _feq[s,0] = 0.25*(_U[s]) + 0.5*phi_x_lb[s]
+            _feq[s,1] = 0.25*(_U[s]) + 0.5*phi_y_lb[s]
+            _feq[s,2] = 0.25*(_U[s]) - 0.5*phi_x_lb[s]
+            _feq[s,3] = 0.25*(_U[s]) - 0.5*phi_y_lb[s]
         write_pop_functional(feq, index, _feq)
         # compute _fstar(_U, phi_x, phi_y) and store it globally
         _fstar = 2.0*_feq-_f
@@ -250,7 +247,7 @@ if stability_factor<1:
         wp.launch(streaming_operator, inputs=[f, fstar], dim=f.shape[1:])
         # wait for all kernels to finish computing
         wp.synchronize_device()
-        # print("f:", f)
+        # postprocessing
         if pp == True and n % pp_freq == 0:
             v_x = U_num.numpy()[0,:,:,0]
             v_y = U_num.numpy()[1,:,:,0]
